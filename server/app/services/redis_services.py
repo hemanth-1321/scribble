@@ -6,6 +6,8 @@ from app.config import REDIS_URL,MAX_PLAYERS_PER_ROOM
 from app.services.schema import add_user
 
 class RoomManager:
+
+
     def __init__(self,redis_url:str=REDIS_URL):
         self.redis_url=redis_url
         self.redis=None
@@ -27,7 +29,7 @@ class RoomManager:
             "max_rounds":5,
             "word":""
         })
-        
+
     async def add_player(self, room_id: str, user: add_user):
         """Add player to room if space available"""
         key = self._room_key(room_id)
@@ -37,7 +39,7 @@ class RoomManager:
 
         if len(players) >= MAX_PLAYERS_PER_ROOM:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="Room is full"
             )
 
@@ -47,4 +49,29 @@ class RoomManager:
         await self.redis.hset(key, "players", json.dumps(players))
 
         return {"success": True, "players": players}
+    
 
+    async def get_room_state(self,room_id:str):
+        """fetch full room state"""
+        key=self._room_key(room_id)
+        data=await self.redis.hgetall(key)
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Empty room"
+            )
+        
+        data["players"]=json.loads(data.get("players",[]))
+        return data
+
+
+    async def publish_events(self,room_id:str,event:dict):
+        channel=self._events_channel(room_id)
+        await self.redis.publish(channel,json.dumps(event))
+    
+
+    async def subscribe(self,room_id:str):
+        """Subscribe to room events"""
+        pubsub=self.redis.pubsub()
+        await pubsub.subscribe(self._events_channel(room_id))
+        return pubsub
