@@ -5,8 +5,7 @@ from fastapi import HTTPException
 from app.config import REDIS_URL,MAX_PLAYERS_PER_ROOM
 from app.services.schema import add_user
 
-class RoomManager:
-
+class GlobalMemory:
 
     def __init__(self,redis_url:str=REDIS_URL):
         self.redis_url=redis_url
