@@ -103,3 +103,4 @@ class GlobalMemory:
 
         await pubsub.subscribe(self._events_channel(room_id))
         return pubsub
+
