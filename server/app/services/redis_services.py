@@ -74,9 +74,7 @@ class GlobalMemory:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="could not add player"
             )
-
         
-
 
     async def get_room_state(self, room_id: str):
         key = self._room_key(room_id)
@@ -90,7 +88,7 @@ class GlobalMemory:
 
         data["players"] = json.loads(data.get("players", "[]"))
 
-        return data
+        return data                                                                                 
 
 
     async def publish_events(self, room_id: str, event: dict):
