@@ -5,6 +5,7 @@ from starlette import status
 from fastapi import HTTPException
 from app.config.settings import Config
 from app.services.schema import add_user
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -26,20 +27,26 @@ class GlobalMemory:
         return f"room:{room_id}:events"
 
  
-    async def create_room(self, room_id: str):
+    async def create_room(self, room_id: str,name:str):
         """Create a room with initial state"""
+
         try:
             key = self._room_key(room_id)
-
+            creator_player={
+                'id':str(uuid4())[:8],
+                'name':name,
+                'score':0
+            }
             await self.redis.hset(key, mapping={
-                "players": json.dumps([]),
+                "players": json.dumps([creator_player]),
                 "current_drawer": "",
                 "round": "1",
                 "max_rounds": "5",
                 "word": ""
             })
-            logger.info(f"Room created: {room_id}")
-            return {"success": True, "room_id": room_id}
+            logger.info(f"Room created: {room_id} by {creator_player}")
+          
+            return {"success": True, "room_id":room_id,"player":creator_player}
         except Exception as e:
             logger.info(f"Room creation failed:{e}")
             raise HTTPException(
@@ -61,11 +68,11 @@ class GlobalMemory:
                     detail="Room is full"
                 )
 
-            player = user.model_dump()  # FIXED
+            player = user.model_dump()  
             players.append(player)
 
             await self.redis.hset(key, "players", json.dumps(players))
-            logger.info(f"Player '{user.id}' joined room {room_id}. Total players: {len(players)}")
+            logger.info(f"Player '{user.name}' joined room {room_id}. Total players: {len(players)}")
 
             return {"success": True, "players": players}
         except Exception as e:

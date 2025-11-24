@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.room import router as room_router
 from app.config.memory import room_service
 from app.config.logger import configure_logging
@@ -22,6 +22,13 @@ async def lifespan(app: FastAPI):
         logger.info("Redis connection closed")
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    )
 
 app.include_router(room_router, prefix="/api/room", tags=["rooms"])
 app.include_router(ws, prefix="") 

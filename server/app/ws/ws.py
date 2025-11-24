@@ -4,12 +4,9 @@ import asyncio
 from fastapi import APIRouter,WebSocket,WebSocketDisconnect
 from app.config.memory import room_service
 
-
 logger = logging.getLogger(__name__)
 
-
 router=APIRouter()
-
 
 @router.websocket("/ws/{room_id}/{player_id}")
 async def room_connection(websocket: WebSocket, room_id: str, player_id: str):
