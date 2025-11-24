@@ -1,10 +1,11 @@
 "use client";
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CanvasBoard from "@/components/CanvasBoard";
 import PlayersSection from "@/components/PlayersSection";
 import ChatSection from "@/components/ChatSection";
 import { Tool } from "@/lib/types";
+import { toast } from "sonner";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -12,11 +13,19 @@ interface PageProps {
 
 export default function Page({ params }: PageProps) {
   const [tool, setTool] = useState<Tool>("pencil");
-  const player = localStorage.getItem("playerId");
+  const [playerId, setPlayerId] = useState<string | null>(null);
   const { id } = React.use(params);
   const roomId = id;
-  console.log(roomId);
-  const playerId = player!;
+
+  useEffect(() => {
+    const storedPlayerId = localStorage.getItem("playerId");
+    if (storedPlayerId) {
+      setPlayerId(storedPlayerId);
+    } else {
+      toast.error("Player ID not found in localStorage");
+      setPlayerId(null);
+    }
+  }, []);
 
   const players = [
     { id: "1", name: "You", points: 1200, emoji: "😎", isDrawing: true },
@@ -33,8 +42,13 @@ export default function Page({ params }: PageProps) {
       <PlayersSection players={players} />
 
       <div className="flex-1 flex flex-col relative bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <CanvasBoard tool={tool} roomId={roomId} playerId={playerId} />
-
+        {playerId ? (
+          <CanvasBoard tool={tool} roomId={roomId} playerId={playerId} />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+            Loading player...
+          </div>
+        )}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
           <div className="flex gap-3 bg-white shadow px-4 py-2 rounded-xl pointer-events-auto ">
             <button
