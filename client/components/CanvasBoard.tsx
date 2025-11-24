@@ -1,17 +1,56 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
+import {
+  Tool,
+  Stroke,
+  Point,
+  DrawStrokeMessage,
+  ClearCanvasMessage,
+  WSMessage,
+} from "@/lib/types";
+import { useRoomSocket } from "@/hooks/useRoomSocket";
 
 interface CanvasBoardProps {
-  tool: "pencil" | "eraser";
+  tool: Tool;
+  roomId: string;
+  playerId: string;
 }
 
-export default function CanvasBoard({ tool }: CanvasBoardProps) {
+export default function CanvasBoard({
+  tool,
+  roomId,
+  playerId,
+}: CanvasBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
-  const strokesRef = useRef<any[]>([]); // ← store strokes
+  const strokesRef = useRef<Stroke[]>([]);
+  const currentStrokeRef = useRef<Stroke | null>(null);
 
-  const currentStrokeRef = useRef<any>(null);
+  const { sendMessage } = useRoomSocket({
+    roomId,
+    playerId,
+    onMessage: (msg: WSMessage) => {
+      switch (msg.type) {
+        case "DRAW_STROKE":
+          if (msg.player_id !== playerId) {
+            strokesRef.current = strokesRef.current ?? [];
+            strokesRef.current.push(msg.stroke);
+            redrawAll();
+          }
+          break;
+
+        case "CLEAR_CANVAS":
+          clearCanvas();
+          break;
+
+        case "ROOM_STATE":
+          strokesRef.current = msg.state.strokes ?? [];
+          redrawAll();
+          break;
+      }
+    },
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -19,26 +58,52 @@ export default function CanvasBoard({ tool }: CanvasBoardProps) {
     canvas.height = canvas.offsetHeight;
   }, []);
 
+  const getPos = (e: MouseEvent | TouchEvent): Point => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = (e as TouchEvent).touches
+      ? (e as TouchEvent).touches[0].clientX
+      : (e as MouseEvent).clientX;
+    const clientY = (e as TouchEvent).touches
+      ? (e as TouchEvent).touches[0].clientY
+      : (e as MouseEvent).clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const redrawAll = () => {
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const stroke of strokesRef.current ?? []) {
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      stroke.points.forEach((p, i) =>
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)
+      );
+      ctx.stroke();
+    }
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokesRef.current = [];
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
 
-    const getPos = (e: any) => {
-      const r = canvas.getBoundingClientRect();
-      return {
-        x: (e.touches ? e.touches[0].clientX : e.clientX) - r.left,
-        y: (e.touches ? e.touches[0].clientY : e.clientY) - r.top,
-      };
-    };
-
-    const start = (e: any) => {
+    const start = (e: MouseEvent | TouchEvent) => {
       isDrawingRef.current = true;
-
       const { x, y } = getPos(e);
 
-      const stroke = {
+      const stroke: Stroke = {
         tool,
-        color: tool === "pencil" ? "#000000" : "#FFFFFF",
+        color: tool === "eraser" ? "#FFFFFF" : "#000000",
         width: tool === "eraser" ? 20 : 3,
         points: [{ x, y }],
       };
@@ -53,8 +118,8 @@ export default function CanvasBoard({ tool }: CanvasBoardProps) {
       ctx.stroke();
     };
 
-    const draw = (e: any) => {
-      if (!isDrawingRef.current) return;
+    const draw = (e: MouseEvent | TouchEvent) => {
+      if (!isDrawingRef.current || !currentStrokeRef.current) return;
       e.preventDefault();
 
       const { x, y } = getPos(e);
@@ -67,45 +132,60 @@ export default function CanvasBoard({ tool }: CanvasBoardProps) {
     };
 
     const stop = () => {
-      if (!isDrawingRef.current) return;
-
+      if (!isDrawingRef.current || !currentStrokeRef.current) return;
       isDrawingRef.current = false;
-      ctx.beginPath();
 
-      // Store stroke
+      strokesRef.current = strokesRef.current ?? [];
       strokesRef.current.push(currentStrokeRef.current);
-      console.log("Stroke saved:", currentStrokeRef.current);
 
+      const msg: DrawStrokeMessage = {
+        type: "DRAW_STROKE",
+        room_id: roomId,
+        player_id: playerId,
+        stroke: currentStrokeRef.current,
+      };
+
+      sendMessage(msg);
       currentStrokeRef.current = null;
+      ctx.beginPath();
     };
-
-    // FULL CLEAR HANDLER
-    const clear = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      strokesRef.current = [];
-      console.log("Canvas cleared");
-    };
-
-    window.addEventListener("clear-canvas", clear);
 
     canvas.addEventListener("mousedown", start);
     canvas.addEventListener("mousemove", draw);
     canvas.addEventListener("mouseup", stop);
     canvas.addEventListener("mouseleave", stop);
-
     canvas.addEventListener("touchstart", start);
     canvas.addEventListener("touchmove", draw, { passive: false });
     canvas.addEventListener("touchend", stop);
 
-    return () => {
-      window.removeEventListener("clear-canvas", clear);
+    // Global clear-canvas event
+    const handleClear = () => {
+      clearCanvas();
+      const msg: ClearCanvasMessage = {
+        type: "CLEAR_CANVAS",
+        room_id: roomId,
+        player_id: playerId,
+      };
+      sendMessage(msg);
     };
-  }, [tool]);
+    window.addEventListener("clear-canvas", handleClear);
+
+    return () => {
+      canvas.removeEventListener("mousedown", start);
+      canvas.removeEventListener("mousemove", draw);
+      canvas.removeEventListener("mouseup", stop);
+      canvas.removeEventListener("mouseleave", stop);
+      canvas.removeEventListener("touchstart", start);
+      canvas.removeEventListener("touchmove", draw);
+      canvas.removeEventListener("touchend", stop);
+      window.removeEventListener("clear-canvas", handleClear);
+    };
+  }, [tool, roomId, playerId, sendMessage]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full bg-white touch-none"
+      className="absolute inset-0 w-full h-full bg-white touch-none cursor-pointer"
     />
   );
 }
