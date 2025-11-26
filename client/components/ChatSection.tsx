@@ -11,7 +11,7 @@ interface ChatMessage {
 interface Props {
   messages: ChatMessage[];
   onSend: (msg: string) => void;
-  className?: string; // Added for external styling control
+  className?: string;
 }
 
 export default function ChatSection({
@@ -64,7 +64,7 @@ export default function ChatSection({
                 {m.sender}
               </span>
               <div
-                className={`px-4 py-2 max-w-[85%] text-sm rounded-2xl break-words ${
+                className={`px-4 py-2 max-w-[85%] text-sm rounded-2xl wrap-break-word ${
                   isMe
                     ? "bg-indigo-600 text-white rounded-br-none"
                     : "bg-gray-100 text-gray-800 rounded-bl-none"
@@ -95,7 +95,7 @@ export default function ChatSection({
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-4 h-4 translate-x-[1px] -translate-y-[1px]"
+              className="w-4 h-4 translate-x-px -translate-y-px"
             >
               <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
             </svg>
