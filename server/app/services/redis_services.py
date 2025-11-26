@@ -1,4 +1,5 @@
 import json
+import uuid
 import logging
 import redis.asyncio as aioredis
 from fastapi import HTTPException
@@ -50,15 +51,19 @@ class GlobalMemory:
         return {"success": True, "room_id": room_id, "player": creator_player}
 
     
-    async def add_player(self, room_id: str, user: add_user):
+    async def add_player(self, room_id: str, user: add_user,player_id:str):
         key = self._room_key(room_id)
         raw = await self.redis.hget(key, "players")
         players = json.loads(raw or "[]")
 
         if len(players) >= Config.MAX_PLAYERS_PER_ROOM:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Room is full")
-
-        player = user.model_dump()
+        player_id=str(uuid.uuid4())[:8]
+        player = {
+            "id":player_id,
+            "name":user.name,
+            "score":user.score
+        }
         players.append(player)
         await self.redis.hset(key, "players", json.dumps(players))
         logger.info(f"Player '{user.name}' joined room {room_id}. Total players: {len(players)}")
@@ -103,6 +108,8 @@ class GlobalMemory:
         logger.info(f"Canvas cleared in room {room_id}")
         return {"sucess":True}
 
+
+
     async def get_room_state(self, room_id: str):
         key = self._room_key(room_id)
         data = await self.redis.hgetall(key)
@@ -111,8 +118,38 @@ class GlobalMemory:
 
         data["players"] = json.loads(data.get("players", "[]"))
         data["strokes"] = json.loads(data.get("strokes", "[]"))  
+        data["chat"]=json.loads(data.get("chat","[]"))
         return data
 
+    async def add_chat(self, room_id: str, user_id: str, message: str):
+        key = self._room_key(room_id)
+        data = await self.redis.hgetall(key)
+        if not data:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        chats = json.loads(data.get("chat", "[]"))
+        chat_message = {
+            "id": str(uuid4())[:8],
+            "user_id": user_id,
+            "message": message,
+            "timestamp": int(__import__("time").time())
+        }
+        chats.append(chat_message)
+        await self.redis.hset(key, "chat", json.dumps(chats))
+
+        # Get current players list to send with the message
+        players = json.loads(data.get("players", "[]"))
+
+        # Publish to all subscribers with players info
+        await self.publish_events(room_id, {
+            "type": "CHAT_MESSAGE",
+            "message": chat_message,
+            "players": players 
+        })
+
+        logger.info(f"Chat message in room {room_id} from {user_id}: {message}")
+        return chat_message
+        
     async def publish_events(self, room_id: str, event: dict):
         channel = self._events_channel(room_id)
         await self.redis.publish(channel, json.dumps(event))

@@ -23,6 +23,20 @@ export function useRoomSocket({
   const socketRef = useRef<WebSocket | null>(null);
   const isCleaningUpRef = useRef(false);
 
+  // Store callbacks in refs so they don't trigger reconnections
+  const onMessageRef = useRef(onMessage);
+  const onOpenRef = useRef(onOpen);
+  const onCloseRef = useRef(onClose);
+  const onErrorRef = useRef(onError);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onOpenRef.current = onOpen;
+    onCloseRef.current = onClose;
+    onErrorRef.current = onError;
+  }, [onMessage, onOpen, onClose, onError]);
+
   useEffect(() => {
     isCleaningUpRef.current = false;
 
@@ -34,25 +48,25 @@ export function useRoomSocket({
       console.log(
         `[WebSocket] Connected to room ${roomId} as player ${playerId}`
       );
-      onOpen?.();
+      onOpenRef.current?.();
     };
 
     ws.onclose = () => {
       if (isCleaningUpRef.current) return;
       console.log(`[WebSocket] Disconnected from room ${roomId}`);
-      onClose?.();
+      onCloseRef.current?.();
     };
 
     ws.onerror = (err) => {
       if (isCleaningUpRef.current) return;
       console.error(`[WebSocket] Error:`, err);
-      onError?.(err);
+      onErrorRef.current?.(err);
     };
 
     ws.onmessage = (event) => {
       if (isCleaningUpRef.current) return;
       const data: WSMessage = JSON.parse(event.data);
-      onMessage?.(data);
+      onMessageRef.current?.(data);
     };
 
     return () => {
@@ -60,7 +74,7 @@ export function useRoomSocket({
       console.log(`[WebSocket] Closing connection to room ${roomId}`);
       ws.close();
     };
-  }, [roomId, playerId, onMessage, onOpen, onClose, onError]);
+  }, [roomId, playerId]); // Only reconnect when roomId or playerId changes
 
   const sendMessage = useCallback((data: WSMessage) => {
     if (

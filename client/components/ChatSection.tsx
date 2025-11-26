@@ -4,20 +4,25 @@ import React, { useState, useEffect, useRef } from "react";
 
 interface ChatMessage {
   id: string;
-  sender: string;
-  text: string;
+  user_id: string;
+  message: string;
+  timestamp: number;
 }
 
 interface Props {
   messages: ChatMessage[];
   onSend: (msg: string) => void;
   className?: string;
+  playerId: string;
+  players: Array<{ id: string; name: string }>;
 }
 
 export default function ChatSection({
   messages,
   onSend,
   className = "",
+  playerId,
+  players,
 }: Props) {
   const [value, setValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -35,6 +40,11 @@ export default function ChatSection({
     setValue("");
   };
 
+  const getPlayerName = (userId: string) => {
+    const player = players.find((p) => p.id === userId);
+    return player?.name || "Unknown";
+  };
+
   return (
     <div
       className={`bg-white md:rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden ${className}`}
@@ -49,32 +59,42 @@ export default function ChatSection({
         ref={scrollRef}
         className="flex-1 p-4 overflow-y-auto space-y-3 bg-white"
       >
-        {messages.map((m) => {
-          const isMe = m.sender === "You";
-          return (
-            <div
-              key={m.id}
-              className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-            >
-              <span
-                className={`text-[10px] mb-1 font-medium text-gray-400 ${
-                  isMe ? "mr-1" : "ml-1"
-                }`}
-              >
-                {m.sender}
-              </span>
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-400 text-sm mt-8">
+            No messages yet. Start the conversation!
+          </div>
+        ) : (
+          messages.map((m) => {
+            const isMe = m.user_id === playerId;
+            const senderName = isMe ? "You" : getPlayerName(m.user_id);
+
+            return (
               <div
-                className={`px-4 py-2 max-w-[85%] text-sm rounded-2xl wrap-break-word ${
-                  isMe
-                    ? "bg-indigo-600 text-white rounded-br-none"
-                    : "bg-gray-100 text-gray-800 rounded-bl-none"
+                key={m.id}
+                className={`flex flex-col ${
+                  isMe ? "items-end" : "items-start"
                 }`}
               >
-                {m.text}
+                <span
+                  className={`text-[10px] mb-1 font-medium text-gray-400 ${
+                    isMe ? "mr-1" : "ml-1"
+                  }`}
+                >
+                  {senderName}
+                </span>
+                <div
+                  className={`px-4 py-2 max-w-[85%] text-sm rounded-2xl wrap-break-word ${
+                    isMe
+                      ? "bg-indigo-600 text-white rounded-br-none"
+                      : "bg-gray-100 text-gray-800 rounded-bl-none"
+                  }`}
+                >
+                  {m.message}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       <div className="p-3 border-t border-gray-100 bg-gray-50/50">

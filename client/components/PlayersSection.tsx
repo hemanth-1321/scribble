@@ -15,7 +15,7 @@ interface Player {
 interface PlayersSectionProps {
   roomId: string;
   playerId: string;
-  className?: string; // Added for external styling control
+  className?: string;
 }
 
 export default function PlayersSection({
