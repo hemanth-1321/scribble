@@ -51,7 +51,7 @@ class GlobalMemory:
         return {"success": True, "room_id": room_id, "player": creator_player}
 
     
-    async def add_player(self, room_id: str, user: add_user,player_id:str):
+    async def add_player(self, room_id: str, user: add_user):
         key = self._room_key(room_id)
         raw = await self.redis.hget(key, "players")
         players = json.loads(raw or "[]")
