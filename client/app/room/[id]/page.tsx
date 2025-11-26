@@ -7,6 +7,7 @@ import PlayersSection from "@/components/PlayersSection";
 import ChatSection from "@/components/ChatSection";
 import { Tool } from "@/lib/types";
 import { toast } from "sonner";
+import JoinRoom from "@/components/JoinRoom";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -153,7 +154,7 @@ export default function Page({ params }: PageProps) {
   if (!playerId) {
     return (
       <div className="h-screen flex items-center justify-center text-red-500 bg-gray-50 px-4 text-center">
-        Player ID not found. Please reload the page or login again.
+        <JoinRoom roomId={roomId} />
       </div>
     );
   }

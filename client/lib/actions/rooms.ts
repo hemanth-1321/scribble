@@ -16,3 +16,20 @@ export const createRoom = async (name: string) => {
     return null;
   }
 };
+export const joinRoom = async (roomId: string, name: string) => {
+  try {
+    const response = await axios.post(`${BACKEND_URL}/api/room/addplayer`, {
+      room_id: roomId,
+      user: { name },
+    });
+    console.log(response.data);
+    if (response.status === 200) {
+      return response.data;
+    }
+
+    throw new Error("Player creation failed");
+  } catch (error) {
+    console.error("Error adding player", error);
+    throw error;
+  }
+};
