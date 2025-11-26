@@ -40,13 +40,16 @@ class GlobalMemory:
         await self.redis.hset(key, mapping={
             "players": json.dumps([creator_player]),
             "current_drawer": "",
-            "round": "1",
-            "max_rounds": "5",
-            "word": ""
-        })
+            "round": "0",
+            "max_rounds": str(Config.MAX_ROUNDS if hasattr(Config, "MAX_ROUNDS") else 5),
+            "word": "",
+            "strokes":json.dumps([]),
+            "started":0
+            })
         logger.info(f"Room created: {room_id} by {creator_player}")
         return {"success": True, "room_id": room_id, "player": creator_player}
 
+    
     async def add_player(self, room_id: str, user: add_user):
         key = self._room_key(room_id)
         raw = await self.redis.hget(key, "players")
@@ -59,7 +62,21 @@ class GlobalMemory:
         players.append(player)
         await self.redis.hset(key, "players", json.dumps(players))
         logger.info(f"Player '{user.name}' joined room {room_id}. Total players: {len(players)}")
+        state=await self.get_room_state(room_id)
+        await self.publish_events(room_id,{
+            "type":"ROOM_STATE",
+            "state":state
+        })
         return {"success": True, "players": players}
+
+    async def remove_player(self,room_id:str,player_id:str):
+        key=self._room_key(room_id)
+        raw=await self.redis.hget(key,"players")
+        players=json.loads(raw or "[]")
+        players=[p for p in players if p["id"]!=player_id]
+
+        await self.redis.hset(key,"players",json.dumps(players))
+        return {"success":True,"players":players}
 
     async def add_stroke(self, room_id: str, stroke: dict):
         """Add a stroke to the room state"""
@@ -78,6 +95,13 @@ class GlobalMemory:
         key = self._room_key(room_id)
         await self.redis.hset(key, "strokes", json.dumps([]))
         logger.info(f"Cleared strokes in room {room_id}")
+    
+    async def clear_canvas(self,room_id:str):
+        """clear full canvas"""
+        key=self._room_key(room_id)
+        await self.redis.hset(key,"strokes","[]")
+        logger.info(f"Canvas cleared in room {room_id}")
+        return {"sucess":True}
 
     async def get_room_state(self, room_id: str):
         key = self._room_key(room_id)

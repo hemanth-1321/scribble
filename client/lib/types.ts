@@ -12,6 +12,14 @@ export interface Stroke {
   points: Point[];
 }
 
+export interface Player {
+  id: string;
+  name: string;
+  emoji: string;
+  points: number;
+  isDrawing?: boolean;
+}
+
 export interface DrawStrokeMessage {
   type: "DRAW_STROKE";
   room_id: string;
@@ -19,18 +27,24 @@ export interface DrawStrokeMessage {
   stroke: Stroke;
 }
 
+export interface ClearStrokeMessage {
+  type: "CLEAR_STROKE";
+  room_id: string;
+  player_id: string;
+}
+
 export interface ClearCanvasMessage {
   type: "CLEAR_CANVAS";
   room_id: string;
   player_id: string;
 }
-
 export interface RoomStateMessage {
   type: "ROOM_STATE";
-  state: { strokes: Stroke[] };
+  state: { strokes: Stroke[]; players: Player[] };
 }
 
 export type WSMessage =
   | DrawStrokeMessage
-  | ClearCanvasMessage
-  | RoomStateMessage;
+  | ClearStrokeMessage
+  | RoomStateMessage
+  | ClearCanvasMessage;

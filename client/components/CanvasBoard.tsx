@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import {
   Tool,
   Stroke,
   Point,
   DrawStrokeMessage,
-  ClearCanvasMessage,
+  ClearStrokeMessage,
   WSMessage,
 } from "@/lib/types";
 import { useRoomSocket } from "@/hooks/useRoomSocket";
@@ -27,10 +27,41 @@ export default function CanvasBoard({
   const strokesRef = useRef<Stroke[]>([]);
   const currentStrokeRef = useRef<Stroke | null>(null);
 
-  const { sendMessage } = useRoomSocket({
-    roomId,
-    playerId,
-    onMessage: (msg: WSMessage) => {
+  const redrawAll = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const stroke of strokesRef.current ?? []) {
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = "round"; // Added for smoother lines
+      ctx.lineJoin = "round"; // Added for smoother lines
+      stroke.points.forEach((p, i) =>
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)
+      );
+      ctx.stroke();
+    }
+  }, []);
+
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokesRef.current = [];
+  }, []);
+
+  const handleMessage = useCallback(
+    (msg: WSMessage) => {
       switch (msg.type) {
         case "DRAW_STROKE":
           if (msg.player_id !== playerId) {
@@ -40,7 +71,7 @@ export default function CanvasBoard({
           }
           break;
 
-        case "CLEAR_CANVAS":
+        case "CLEAR_STROKE":
           clearCanvas();
           break;
 
@@ -48,18 +79,47 @@ export default function CanvasBoard({
           strokesRef.current = msg.state.strokes ?? [];
           redrawAll();
           break;
+
+        case "CLEAR_CANVAS":
+          clearCanvas();
+          break;
       }
     },
+    [playerId, redrawAll, clearCanvas]
+  );
+
+  const { sendMessage } = useRoomSocket({
+    roomId,
+    playerId,
+    onMessage: handleMessage,
   });
 
+  // Handle Resize Logic
   useEffect(() => {
-    const canvas = canvasRef.current!;
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-  }, []);
+    const handleResize = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      // Save current drawing
+      const tempStrokes = strokesRef.current;
 
-  const getPos = (e: MouseEvent | TouchEvent): Point => {
-    const canvas = canvasRef.current!;
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+
+      // Restore drawing
+      strokesRef.current = tempStrokes;
+      redrawAll();
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initial sizing
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, [redrawAll]);
+
+  const getPos = useCallback((e: MouseEvent | TouchEvent): Point => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
     const rect = canvas.getBoundingClientRect();
     const clientX = (e as TouchEvent).touches
       ? (e as TouchEvent).touches[0].clientX
@@ -68,34 +128,18 @@ export default function CanvasBoard({
       ? (e as TouchEvent).touches[0].clientY
       : (e as MouseEvent).clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
-  };
-
-  const redrawAll = () => {
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (const stroke of strokesRef.current ?? []) {
-      ctx.beginPath();
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.width;
-      stroke.points.forEach((p, i) =>
-        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)
-      );
-      ctx.stroke();
-    }
-  };
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    strokesRef.current = [];
-  };
+  }, []);
 
   useEffect(() => {
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set default styles
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
     const start = (e: MouseEvent | TouchEvent) => {
       isDrawingRef.current = true;
@@ -158,11 +202,10 @@ export default function CanvasBoard({
     canvas.addEventListener("touchmove", draw, { passive: false });
     canvas.addEventListener("touchend", stop);
 
-    // Global clear-canvas event
     const handleClear = () => {
       clearCanvas();
-      const msg: ClearCanvasMessage = {
-        type: "CLEAR_CANVAS",
+      const msg: ClearStrokeMessage = {
+        type: "CLEAR_STROKE",
         room_id: roomId,
         player_id: playerId,
       };
@@ -180,12 +223,23 @@ export default function CanvasBoard({
       canvas.removeEventListener("touchend", stop);
       window.removeEventListener("clear-canvas", handleClear);
     };
-  }, [tool, roomId, playerId, sendMessage]);
+  }, [tool, roomId, playerId, sendMessage, getPos, clearCanvas]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full bg-white touch-none cursor-pointer"
-    />
+    <div className="relative w-full h-full bg-white overflow-hidden rounded-xl shadow-inner">
+      {/* Grid Pattern Background for better aesthetics */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          backgroundImage: "radial-gradient(#000 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
+        }}
+      ></div>
+
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full touch-none cursor-crosshair"
+      />
+    </div>
   );
 }

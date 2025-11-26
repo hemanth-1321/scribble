@@ -1,5 +1,9 @@
 "use client";
 
+import { useState, useCallback, useMemo } from "react";
+import { useRoomSocket } from "@/hooks/useRoomSocket";
+import { WSMessage } from "@/lib/types";
+
 interface Player {
   id: string;
   name: string;
@@ -8,44 +12,87 @@ interface Player {
   isDrawing?: boolean;
 }
 
-interface Props {
-  players: Player[];
+interface PlayersSectionProps {
+  roomId: string;
+  playerId: string;
+  className?: string; // Added for external styling control
 }
 
-export default function PlayersSection({ players }: Props) {
+export default function PlayersSection({
+  roomId,
+  playerId,
+  className = "",
+}: PlayersSectionProps) {
+  const [players, setPlayers] = useState<Player[]>([]);
+
+  const handleMessage = useCallback((msg: WSMessage) => {
+    if (msg.type === "ROOM_STATE" && msg.state.players) {
+      setPlayers(msg.state.players);
+    }
+  }, []);
+
+  const socketConfig = useMemo(
+    () => ({ roomId, playerId, onMessage: handleMessage }),
+    [roomId, playerId, handleMessage]
+  );
+
+  useRoomSocket(socketConfig);
+
   return (
-    <div className="w-64 bg-white rounded-2xl shadow-sm border flex flex-col shrink-0">
-      <div className="p-4 border-b bg-indigo-50 rounded-t-2xl">
-        <h3 className="font-bold text-indigo-900">
-          Players ({players.length})
-        </h3>
+    <div
+      className={`bg-white md:rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden ${className}`}
+    >
+      <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        <h3 className="font-bold text-gray-800">Players</h3>
+        <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
+          {players.length}
+        </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {players.map((p) => (
-          <div
-            key={p.id}
-            className={`flex items-center justify-between p-2 rounded-lg ${
-              p.isDrawing
-                ? "bg-indigo-100 border border-indigo-300"
-                : "hover:bg-gray-50"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-lg">
-                {p.emoji}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {players.map((p) => {
+          const isMe = p.id === playerId;
+          return (
+            <div
+              key={p.id}
+              className={`group flex items-center justify-between p-2 rounded-xl transition-all ${
+                p.isDrawing
+                  ? "bg-indigo-50 border border-indigo-200 shadow-sm"
+                  : "hover:bg-gray-50 border border-transparent"
+              }`}
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xl shrink-0 ${
+                    p.isDrawing ? "bg-white" : "bg-gray-100"
+                  }`}
+                >
+                  {p.emoji}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-gray-700 truncate">
+                    {p.name}{" "}
+                    {isMe && (
+                      <span className="text-gray-400 font-normal">(You)</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {p.points} pts
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-bold text-sm">{p.name}</p>
-                <p className="text-xs text-gray-400">{p.points} pts</p>
-              </div>
-            </div>
 
-            {p.isDrawing && (
-              <div className="text-indigo-600 animate-pulse text-xs">✏️</div>
-            )}
-          </div>
-        ))}
+              {p.isDrawing && (
+                <div
+                  className="text-indigo-600 animate-bounce text-lg mr-1"
+                  title="Drawing now"
+                >
+                  ✏️
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

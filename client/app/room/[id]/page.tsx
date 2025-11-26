@@ -1,4 +1,5 @@
 "use client";
+
 import * as React from "react";
 import { useState, useEffect } from "react";
 import CanvasBoard from "@/components/CanvasBoard";
@@ -14,75 +15,250 @@ interface PageProps {
 export default function Page({ params }: PageProps) {
   const [tool, setTool] = useState<Tool>("pencil");
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const [loadingPlayer, setLoadingPlayer] = useState(true);
+
+  // Mobile UI States
+  const [showPlayers, setShowPlayers] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+
   const { id } = React.use(params);
   const roomId = id;
 
   useEffect(() => {
     const storedPlayerId = localStorage.getItem("playerId");
+
     if (storedPlayerId) {
       setPlayerId(storedPlayerId);
     } else {
       toast.error("Player ID not found in localStorage");
       setPlayerId(null);
     }
+
+    setLoadingPlayer(false);
   }, []);
 
-  const players = [
-    { id: "1", name: "You", points: 1200, emoji: "😎", isDrawing: true },
-    { id: "2", name: "Alex", points: 900, emoji: "🤠" },
-  ];
+  if (loadingPlayer) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-pulse flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-400 font-medium">Loading game...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!playerId) {
+    return (
+      <div className="h-screen flex items-center justify-center text-red-500 bg-gray-50 px-4 text-center">
+        Player ID not found. Please reload the page or login again.
+      </div>
+    );
+  }
 
   const messages = [
-    { id: "1", sender: "Alex", text: "Hello!" },
-    { id: "2", sender: "You", text: "Hi!" },
+    { id: "1", sender: "Alex", text: "Hello everyone!" },
+    { id: "2", sender: "You", text: "Hi! Ready to draw?" },
   ];
 
   return (
-    <div className="h-screen p-4 flex gap-4 bg-gray-100">
-      <PlayersSection players={players} />
+    <div className="h-dvh bg-gray-100 flex flex-col md:flex-row md:p-4 gap-4 overflow-hidden relative">
+      {/* --- Mobile Header --- */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shrink-0 z-20">
+        <button
+          onClick={() => {
+            setShowPlayers(!showPlayers);
+            setShowChat(false);
+          }}
+          className={`p-2 rounded-lg transition-colors ${
+            showPlayers
+              ? "bg-indigo-100 text-indigo-700"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+            />
+          </svg>
+        </button>
 
-      <div className="flex-1 flex flex-col relative bg-white rounded-2xl border shadow-sm overflow-hidden">
-        {playerId ? (
-          <CanvasBoard tool={tool} roomId={roomId} playerId={playerId} />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            Loading player...
-          </div>
-        )}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <div className="flex gap-3 bg-white shadow px-4 py-2 rounded-xl pointer-events-auto ">
+        <h1 className="font-bold text-gray-800 text-sm">
+          Room: {roomId.slice(0, 6)}...
+        </h1>
+
+        <button
+          onClick={() => {
+            setShowChat(!showChat);
+            setShowPlayers(false);
+          }}
+          className={`p-2 rounded-lg transition-colors ${
+            showChat
+              ? "bg-indigo-100 text-indigo-700"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* --- Players Section (Desktop: Static Left | Mobile: Overlay Left) --- */}
+      <div
+        className={`
+        fixed md:relative inset-y-0 left-0 z-30
+        w-3/4 md:w-64 bg-white md:bg-transparent shadow-2xl md:shadow-none
+        transform transition-transform duration-300 ease-in-out
+        ${showPlayers ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        md:flex md:flex-col shrink-0 h-full
+        ${showPlayers ? "block" : "hidden md:flex"}
+      `}
+      >
+        {/* Mobile Close Button */}
+        <div
+          className="md:hidden absolute top-2 right-2 p-2"
+          onClick={() => setShowPlayers(false)}
+        >
+          <span className="text-gray-400 text-2xl">&times;</span>
+        </div>
+        <PlayersSection
+          roomId={roomId}
+          playerId={playerId}
+          className="h-full border-r md:border-r-0 rounded-none md:rounded-2xl"
+        />
+      </div>
+
+      {/* --- Overlay Backdrop for Mobile --- */}
+      {(showPlayers || showChat) && (
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-20 md:hidden"
+          onClick={() => {
+            setShowPlayers(false);
+            setShowChat(false);
+          }}
+        />
+      )}
+
+      {/* --- Main Canvas Area --- */}
+      <div className="flex-1 relative flex flex-col md:rounded-2xl md:border md:shadow-sm overflow-hidden bg-white z-10">
+        <CanvasBoard tool={tool} roomId={roomId} playerId={playerId} />
+
+        {/* Floating Toolbar */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-40 w-full flex justify-center px-4">
+          <div className="flex items-center gap-1 bg-white/90 backdrop-blur-md shadow-lg border border-gray-200/50 p-1.5 rounded-2xl pointer-events-auto scale-100 transition-transform">
             <button
               onClick={() => setTool("pencil")}
-              className={`px-3 py-2 rounded-lg ${
-                tool === "pencil" ? "bg-blue-200" : "bg-gray-100"
-              } cursor-pointer`}
+              className={`p-3 rounded-xl transition-all duration-200 group relative ${
+                tool === "pencil"
+                  ? "bg-indigo-100 text-indigo-700 shadow-inner"
+                  : "hover:bg-gray-100 text-gray-600"
+              }`}
+              title="Pencil"
             >
-              ✏️
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-6 h-6"
+              >
+                <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
+              </svg>
             </button>
+
             <button
               onClick={() => setTool("eraser")}
-              className={`px-3 py-2 rounded-lg ${
-                tool === "eraser" ? "bg-blue-200" : "bg-gray-100"
-              } cursor-pointer`}
+              className={`p-3 rounded-xl transition-all duration-200 group ${
+                tool === "eraser"
+                  ? "bg-indigo-100 text-indigo-700 shadow-inner"
+                  : "hover:bg-gray-100 text-gray-600"
+              }`}
+              title="Eraser"
             >
-              🧽
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-6 h-6"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314c.99-.55 2.253-.14 2.797.863l1.838 3.398c.55.99.14 2.253-.863 2.797L8.356 19.34a2.25 2.25 0 01-2.11.082l-3.8-1.52a2.25 2.25 0 01-1.284-2.455l1.056-6.432c.214-1.304 1.636-1.996 2.826-1.378l2.173 1.17z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </button>
+
+            <div className="w-px h-8 bg-gray-200 mx-1"></div>
+
             <button
               onClick={() =>
                 window.dispatchEvent(new CustomEvent("clear-canvas"))
               }
-              className="px-3 py-2 rounded-lg bg-red-100 active:bg-red-200 cursor-pointer"
+              className="p-3 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+              title="Clear Board"
             >
-              🗑️
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-6 h-6"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </button>
           </div>
         </div>
       </div>
 
-      <ChatSection
-        messages={messages}
-        onSend={(msg) => console.log("Send:", msg)}
-      />
+      {/* --- Chat Section (Desktop: Static Right | Mobile: Overlay Right) --- */}
+      <div
+        className={`
+        fixed md:relative inset-y-0 right-0 z-30
+        w-3/4 md:w-80 bg-white md:bg-transparent shadow-2xl md:shadow-none
+        transform transition-transform duration-300 ease-in-out
+        ${showChat ? "translate-x-0" : "translate-x-full md:translate-x-0"}
+        md:flex md:flex-col shrink-0 h-full
+        ${showChat ? "block" : "hidden md:flex"}
+      `}
+      >
+        {/* Mobile Close Button */}
+        <div
+          className="md:hidden absolute top-2 left-2 p-2"
+          onClick={() => setShowChat(false)}
+        >
+          <span className="text-gray-400 text-2xl">&times;</span>
+        </div>
+        <ChatSection
+          messages={messages}
+          onSend={(msg) => console.log("Send:", msg)}
+          className="h-full border-l md:border-l-0 rounded-none md:rounded-2xl"
+        />
+      </div>
     </div>
   );
 }
