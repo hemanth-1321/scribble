@@ -9,3 +9,9 @@ class add_user(BaseModel):
 class JoinRoomRequest(BaseModel):
     room_id: str
     user: add_user
+    
+    
+class GuessRequest(BaseModel):
+    room_id: str
+    player_id: str
+    guess: str

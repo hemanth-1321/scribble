@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter,Body
 from app.config.memory import room_service
-from app.services.schema import JoinRoomRequest
+from app.services.schema import JoinRoomRequest,GuessRequest
 from pydantic import BaseModel
 
 from uuid import uuid4
@@ -24,3 +24,11 @@ async def create_room(roombody:roomBody):
 async def add_player(data:JoinRoomRequest):
     return await room_service.add_player(data.room_id, data.user)
 
+@router.post("/{id}/start")
+async def start_game(id:str):
+    return await room_service.start_game(room_id=id)
+
+
+@router.post("/guess")
+async def guess_word(req:GuessRequest):
+    return await room_service.guess_word(req.room_id,req.player_id,req.guess)

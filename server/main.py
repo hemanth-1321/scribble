@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- Startup ---
     await room_service.init()
     logger.info("Redis initialized")
     yield
-    # --- Shutdown ---
     if room_service.redis:
         await room_service.redis.close()
         logger.info("Redis connection closed")
@@ -31,7 +29,7 @@ app.add_middleware(
     )
 
 app.include_router(room_router, prefix="/api/room", tags=["rooms"])
-app.include_router(ws, prefix="") 
+app.include_router(ws) 
 
 
 @app.get("/")

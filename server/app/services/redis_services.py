@@ -1,4 +1,5 @@
 import json
+import random
 import uuid
 import logging
 import redis.asyncio as aioredis
@@ -7,7 +8,7 @@ from starlette import status
 from uuid import uuid4
 from app.config.settings import Config
 from app.services.schema import add_user
-
+from app.config.words import WORDS
 logger = logging.getLogger(__name__)
 
 class GlobalMemory:
@@ -137,10 +138,8 @@ class GlobalMemory:
         chats.append(chat_message)
         await self.redis.hset(key, "chat", json.dumps(chats))
 
-        # Get current players list to send with the message
         players = json.loads(data.get("players", "[]"))
 
-        # Publish to all subscribers with players info
         await self.publish_events(room_id, {
             "type": "CHAT_MESSAGE",
             "message": chat_message,
@@ -149,7 +148,65 @@ class GlobalMemory:
 
         logger.info(f"Chat message in room {room_id} from {user_id}: {message}")
         return chat_message
+    
+    async def start_game(self,room_id:str):
+        key=self._room_key(room_id)
+        data=await self.redis.hgetall(key)
         
+        if not data:
+             raise HTTPException(
+                 status_code=status.HTTP_404_NOT_FOUND,
+                 detail="room is empty"
+             )
+        players=json.loads(data.get("players",'[]'))
+        if len(players)<2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Need at least 2 players in the room"
+            )        
+        
+        drawer=random.choice(players)
+        logger.info(f"player {drawer} is the drawer")
+        word=random.choice(WORDS)
+        logger.info(f"{word} is the word")
+        
+        await self.redis.hset(key,mapping={
+            "drawer":drawer["id"],
+            "word":word,
+            "started":1,
+            "guessed":json.dumps([])
+        })
+        
+        await self.publish_events(room_id,{
+            "type":"GAME_STARTED",
+            "drawer":drawer,
+            "word":word
+        })
+        return{
+             "type":"GAME_STARTED",
+              "drawer":drawer,
+              "word":word
+        }
+    
+    async def guess_word(self,room_id:str,player_id:str,guess:str):
+        key=self._room_key(room_id)
+        data=await self.redis.hgetall(key)
+        word=data.get("word")
+        if guess.lower()==word.lower():
+            await self.publish_events(room_id,{
+                "type":"GAME_ENDED",
+                "winner":player_id,
+                "correct_word":word
+            })
+            await self.redis.delete(key)
+            return {
+                "correct":True
+            }
+        return {
+            "correct":False
+        }
+                
+    
     async def publish_events(self, room_id: str, event: dict):
         channel = self._events_channel(room_id)
         await self.redis.publish(channel, json.dumps(event))
